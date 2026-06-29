@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: harvester-backend
+    ports:
+      - "8010:8010"
+    volumes:
+      # Mount the .env file so target credentials/URLs can be updated on the host without image rebuilds
+      - ./backend/.env:/app/.env
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: harvester-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
