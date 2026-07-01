@@ -63,7 +63,10 @@ async def get_live_machines(
     col = db["records"]
     
     # Match stage
-    match_stage = {"isDeleted": {"$ne": True}}
+    match_stage = {
+        "isDeleted": {"$ne": True},
+        "measurementDate": {"$gte": config.START_DATE}
+    }
     if plate:
         match_stage["plate"] = plate
     if driverTCKN:
@@ -128,15 +131,20 @@ async def get_machine_history(
         
     # Date range filters (making timezone naive to match DB naive datetimes)
     date_filter = {}
+    
+    # Enforce minimum start date from config
+    min_start = config.START_DATE
     if startDate:
         naive_start = startDate.replace(tzinfo=None) if startDate.tzinfo else startDate
-        date_filter["$gte"] = naive_start
+        date_filter["$gte"] = max(naive_start, min_start)
+    else:
+        date_filter["$gte"] = min_start
+        
     if endDate:
         naive_end = endDate.replace(tzinfo=None) if endDate.tzinfo else endDate
         date_filter["$lte"] = naive_end
         
-    if date_filter:
-        query["measurementDate"] = date_filter
+    query["measurementDate"] = date_filter
         
     try:
         # Query and sort chronologically (ascending)
