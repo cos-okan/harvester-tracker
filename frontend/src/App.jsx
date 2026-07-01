@@ -98,8 +98,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [mapCenter, setMapCenter] = useState([38.395, 27.011]); // Default Buca/Izmir
-  const [mapZoom, setMapZoom] = useState(9);
+  const [mapCenter, setMapCenter] = useState([40.693378, 26.83737]); // Default to most recent harvester coordinates
+  const [mapZoom, setMapZoom] = useState(13);
   
   // Timer ref for live updates polling
   const pollingInterval = useRef(null);
