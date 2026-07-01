@@ -103,6 +103,7 @@ export default function App() {
   
   // Timer ref for live updates polling
   const pollingInterval = useRef(null);
+  const isInitialLoad = useRef(true);
 
   // Fetch Live Data
   const fetchLiveMachines = async (silent = false) => {
@@ -120,10 +121,23 @@ export default function App() {
       
       setMachines(data);
       
-      // If a machine is selected, update its details with new data
-      if (selectedMachine) {
-        const updated = data.find(m => m.plate === selectedMachine.plate);
-        if (updated) setSelectedMachine(updated);
+      if (data && data.length > 0) {
+        if (isInitialLoad.current) {
+          isInitialLoad.current = false;
+          // Find the most recent machine
+          const sorted = [...data].sort((a, b) => new Date(b.measurementDate) - new Date(a.measurementDate));
+          const mostRecent = sorted[0];
+          setSelectedMachine(mostRecent);
+          const coords = mostRecent.location?.coordinates;
+          if (coords && coords[0] !== 0 && coords[1] !== 0) {
+            setMapCenter([coords[0], coords[1]]);
+            setMapZoom(13);
+          }
+        } else if (selectedMachine) {
+          // If a machine is selected, update its details with new data
+          const updated = data.find(m => m.plate === selectedMachine.plate);
+          if (updated) setSelectedMachine(updated);
+        }
       }
     } catch (err) {
       setError(err.message);
