@@ -125,3 +125,9 @@ npm install
 npm run dev
 ```
 Geliştirme arayüzüne `http://localhost:5173` üzerinden erişebilirsiniz.
+
+---
+
+## 🌐 Dış Dünyadan Erişim (Ngrok)
+
+Uygulamayı local ortamınızdayken ngrok yardımıyla dış dünyaya açmak için hazırlanan detaylı kılavuza [NGROK_GUIDE.md](NGROK_GUIDE.md) dosyasından ulaşabilirsiniz.

@@ -21,7 +21,8 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:8010/api/v1/machines`;
+const API_BASE_URL = import.meta.env.VITE_API_URL || (window.location.port === "5173" ? `http://${window.location.hostname}:8010/api/v1/machines` : "/api/v1/machines");
+
 
 // Helper to create dynamic custom SVG markers for harvesters
 const getPulsingMarker = (isSpeeding) => {
