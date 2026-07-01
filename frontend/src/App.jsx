@@ -391,6 +391,15 @@ export default function App() {
                           <div className="flex flex-col gap-0.5">
                             <span className="font-bold text-white text-sm font-outfit">{machine.plate}</span>
                             <span className="text-xs text-slate-400">{machine.areaName || 'Bilinmeyen'} ({machine.areaCode})</span>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              Son Güncelleme: {new Date(machine.measurementDate).toLocaleString('tr-TR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit'
+                              })}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className={`text-xs px-2.5 py-1 rounded-full font-bold border ${
