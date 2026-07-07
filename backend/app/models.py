@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from typing import List, Optional
 from datetime import datetime
 
@@ -25,8 +25,14 @@ class MachineRecordResponse(BaseModel):
     isSpeeding: bool = False
     seedType: Optional[str] = None
 
+    @field_serializer('measurementDate')
+    def serialize_dt(self, dt: datetime, _info) -> str:
+        if dt.tzinfo is None:
+            return dt.isoformat() + "Z"
+        return dt.isoformat()
+
     class Config:
         populate_by_name = True
         json_encoders = {
-            datetime: lambda v: v.isoformat()
+            datetime: lambda v: v.isoformat() + "Z" if v.tzinfo is None else v.isoformat()
         }
