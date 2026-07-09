@@ -166,9 +166,16 @@ async def novametri_worker_loop():
                         }
                         
                         is_success = False
+                        api_response = None
                         try:
                             print(f"Novametri Forwarder: Sending messageNo {message_no} for vehicle {plate} to Novametri...")
                             response = await client.post(config.NOVAMETRI_URL, json=payload, headers=headers)
+                            
+                            # Parse JSON response or save text/status
+                            try:
+                                api_response = response.json()
+                            except Exception:
+                                api_response = {"text": response.text[:1000]}
                             
                             if response.status_code in [200, 201]:
                                 is_success = True
@@ -176,6 +183,7 @@ async def novametri_worker_loop():
                             else:
                                 print(f"Novametri Forwarder: Novametri API returned status code {response.status_code} for {plate}.")
                         except Exception as post_err:
+                            api_response = {"error": str(post_err)}
                             print(f"Novametri Forwarder: Failed to send post request for {plate}: {str(post_err)}")
                         
                         # Save state to novametri_messages
@@ -188,7 +196,8 @@ async def novametri_worker_loop():
                                         "cihazId": plate,
                                         "measurementDate": measurement_date,
                                         "isSentToNovametri": is_success,
-                                        "sentTime": datetime.now(timezone.utc) if is_success else None
+                                        "sentTime": datetime.now(timezone.utc) if is_success else None,
+                                        "apiResponse": api_response
                                     }
                                 },
                                 upsert=True
