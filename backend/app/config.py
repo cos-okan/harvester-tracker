@@ -22,3 +22,17 @@ except ValueError:
 FORWARD_URL = os.getenv("FORWARD_URL", "")
 FORWARD_INTERVAL = float(os.getenv("FORWARD_INTERVAL", "5.0"))  # Check every 5 seconds by default
 
+# Novametri Integration Settings
+NOVAMETRI_URL = os.getenv("NOVAMETRI_URL", "https://hasat.novametri.com/ingest")
+NOVAMETRI_API_KEY = os.getenv("NOVAMETRI_API_KEY", "Ingest_live_NzM5YThkMjEtMmFiYy00ZGViLWE4MTYtMzliY2Q5YThk")
+NOVAMETRI_INTERVAL = float(os.getenv("NOVAMETRI_INTERVAL", "60.0"))  # 60 seconds by default
+
+# Novametri Start Date (only send records on or after this date)
+novametri_start_str = os.getenv("NOVAMETRI_START_DATE", "2026-07-09T10:00:00")
+try:
+    NOVAMETRI_START_DATE = datetime.fromisoformat(novametri_start_str)
+except ValueError:
+    NOVAMETRI_START_DATE = datetime(2026, 7, 9, 10, 0, 0)
+
+
+

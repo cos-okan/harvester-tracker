@@ -24,6 +24,10 @@ class MachineRecordResponse(BaseModel):
     isActive: bool = True
     isSpeeding: bool = False
     seedType: Optional[str] = None
+    avgSpeed: Optional[float] = None
+    avgHumidity: Optional[float] = None
+    speedingCount: Optional[int] = None
+
 
     @field_serializer('measurementDate')
     def serialize_dt(self, dt: datetime, _info) -> str:

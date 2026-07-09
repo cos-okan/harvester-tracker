@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from app.db import connect_to_mongo, close_mongo_connection
 from app.routes import router
 from app.forwarder import start_forwarder
+from app.novametri_forwarder import start_novametri_forwarder
 from app import config
 
 @asynccontextmanager
@@ -13,6 +14,9 @@ async def lifespan(app: FastAPI):
     
     # Start background data forwarder
     start_forwarder()
+    
+    # Start background Novametri data forwarder
+    start_novametri_forwarder()
     
     yield
     # Shutdown: Close MongoDB connection

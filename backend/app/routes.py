@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, Depends, HTTPException
 from typing import List, Optional
 from datetime import datetime
-from app.db import get_database
+from app.db import get_database, db_instance
 from app.models import MachineRecordResponse
 from app import config
 
@@ -65,10 +65,28 @@ async def get_live_machines(
     # Match stage
     match_stage = {
         "isDeleted": {"$ne": True},
-        "measurementDate": {"$gte": config.START_DATE}
+        "measurementDate": {"$gte": config.START_DATE},
+        "location.coordinates": {"$exists": True, "$ne": None},
+        "$expr": {
+            "$and": [
+                {"$gt": [{"$size": "$location.coordinates"}, 1]},
+                {"$ne": [{"$arrayElemAt": ["$location.coordinates", 0]}, 0.0]},
+                {"$ne": [{"$arrayElemAt": ["$location.coordinates", 1]}, 0.0]}
+            ]
+        }
     }
-    if plate:
-        match_stage["plate"] = plate
+    # Enforce allowed plates whitelist if defined_devices table is not empty
+    if db_instance.allowed_plates:
+        if plate:
+            if plate not in db_instance.allowed_plates:
+                match_stage["plate"] = "__NOT_ALLOWED__"
+            else:
+                match_stage["plate"] = plate
+        else:
+            match_stage["plate"] = {"$in": list(db_instance.allowed_plates)}
+    else:
+        if plate:
+            match_stage["plate"] = plate
     if driverTCKN:
         # Match value field against the numeric driverTCKN
         # PyMongo/MongoDB can match float 22622184760.0 to integer 22622184760
@@ -82,16 +100,36 @@ async def get_live_machines(
     # Sort by measurementDate descending so that $first picks the latest record
     pipeline.append({"$sort": {"measurementDate": -1}})
     
-    # Group by plate to get the latest record per harvester
+    # Group by plate to get the latest record per harvester and calculate stats
     pipeline.append({
         "$group": {
             "_id": "$plate",
-            "doc": {"$first": "$$ROOT"}
+            "doc": {"$first": "$$ROOT"},
+            "avgSpeed": {"$avg": "$speed"},
+            "avgHumidity": {"$avg": "$humidity"},
+            "speedingCount": {
+                "$sum": {
+                    "$cond": [{"$gt": ["$speed", config.SPEED_LIMIT]}, 1, 0]
+                }
+            }
         }
     })
     
-    # Project to make the grouped document the root
-    pipeline.append({"$replaceRoot": {"newRoot": "$doc"}})
+    # Project to make the merged document the root
+    pipeline.append({
+        "$replaceRoot": {
+            "newRoot": {
+                "$mergeObjects": [
+                    "$doc",
+                    {
+                        "avgSpeed": "$avgSpeed",
+                        "avgHumidity": "$avgHumidity",
+                        "speedingCount": "$speedingCount"
+                    }
+                ]
+            }
+        }
+    })
     
     try:
         cursor = col.aggregate(pipeline)
@@ -109,7 +147,8 @@ async def get_machine_history(
     endDate: Optional[datetime] = Query(None, description="Bitiş tarihi (ISO format)"),
     plate: Optional[str] = Query(None, description="Biçerdöver plakası"),
     driverTCKN: Optional[int] = Query(None, description="Sürücü TCKN"),
-    areaCode: Optional[int] = Query(None, description="Bölge kodu")
+    areaCode: Optional[int] = Query(None, description="Bölge kodu"),
+    alarmsOnly: bool = Query(False, description="Sadece hız ihlali olan kayıtları getirir")
 ):
     """
     Biçerdöverlerin belirtilen kriterlere göre geçmiş konum ve çalışma verilerini kronolojik sırayla döndürür.
@@ -121,13 +160,37 @@ async def get_machine_history(
     col = db["records"]
     
     # Build query
-    query = {"isDeleted": {"$ne": True}}
-    if plate:
-        query["plate"] = plate
+    query = {
+        "isDeleted": {"$ne": True},
+        "location.coordinates": {"$exists": True, "$ne": None},
+        "$expr": {
+            "$and": [
+                {"$gt": [{"$size": "$location.coordinates"}, 1]},
+                {"$ne": [{"$arrayElemAt": ["$location.coordinates", 0]}, 0.0]},
+                {"$ne": [{"$arrayElemAt": ["$location.coordinates", 1]}, 0.0]}
+            ]
+        }
+    }
+    # Enforce allowed plates whitelist if defined_devices table is not empty
+    if db_instance.allowed_plates:
+        if plate:
+            if plate not in db_instance.allowed_plates:
+                query["plate"] = "__NOT_ALLOWED__"
+            else:
+                query["plate"] = plate
+        else:
+            query["plate"] = {"$in": list(db_instance.allowed_plates)}
+    else:
+        if plate:
+            query["plate"] = plate
     if driverTCKN:
         query["value"] = driverTCKN
     if areaCode:
         query["areaCode"] = areaCode
+        
+    # Apply alarmsOnly filter (speed > speed limit)
+    if alarmsOnly:
+        query["speed"] = {"$gt": config.SPEED_LIMIT}
         
     # Date range filters (making timezone naive to match DB naive datetimes)
     date_filter = {}
@@ -147,8 +210,9 @@ async def get_machine_history(
     query["measurementDate"] = date_filter
         
     try:
-        # Query and sort chronologically (ascending)
-        cursor = col.find(query).sort("measurementDate", 1)
+        # Query and sort (descending for alarms, ascending for historical track)
+        sort_dir = -1 if alarmsOnly else 1
+        cursor = col.find(query).sort("measurementDate", sort_dir)
         raw_results = await cursor.to_list(length=1000)  # Cap at 1000 records for performance
         
         results = [map_mongo_to_response(doc) for doc in raw_results]
