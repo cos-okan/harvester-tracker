@@ -789,6 +789,36 @@ export default function App() {
                 </div>
               )}
 
+              {/* Sezonluk İstatistikler */}
+              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex flex-col gap-2 text-xs">
+                <div className="flex items-center gap-2 border-b border-slate-800 pb-1.5 mb-0.5 text-slate-400 font-semibold uppercase tracking-wider text-[9px]">
+                  <Gauge className="w-3.5 h-3.5 text-emerald-400" />
+                  Genel İstatistikler
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Ortalama Hız:</span>
+                  <span className="font-semibold text-slate-200">
+                    {selectedMachine.avgSpeed !== undefined && selectedMachine.avgSpeed !== null
+                      ? `${selectedMachine.avgSpeed.toFixed(2)} km/s`
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Ortalama Nem:</span>
+                  <span className="font-semibold text-slate-200">
+                    {selectedMachine.avgHumidity !== undefined && selectedMachine.avgHumidity !== null
+                      ? `%${selectedMachine.avgHumidity.toFixed(1)}`
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Hız Aşım Adedi:</span>
+                  <span className={`font-semibold ${selectedMachine.speedingCount > 0 ? 'text-red-400 font-bold' : 'text-slate-200'}`}>
+                    {selectedMachine.speedingCount ?? 0} adet
+                  </span>
+                </div>
+              </div>
+
               {/* Sürücü Bilgileri */}
               <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex flex-col gap-2 text-xs">
                 <div className="flex items-center gap-2 border-b border-slate-800 pb-1.5 mb-0.5 text-slate-400 font-semibold uppercase tracking-wider text-[9px]">

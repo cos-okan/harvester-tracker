@@ -100,16 +100,36 @@ async def get_live_machines(
     # Sort by measurementDate descending so that $first picks the latest record
     pipeline.append({"$sort": {"measurementDate": -1}})
     
-    # Group by plate to get the latest record per harvester
+    # Group by plate to get the latest record per harvester and calculate stats
     pipeline.append({
         "$group": {
             "_id": "$plate",
-            "doc": {"$first": "$$ROOT"}
+            "doc": {"$first": "$$ROOT"},
+            "avgSpeed": {"$avg": "$speed"},
+            "avgHumidity": {"$avg": "$humidity"},
+            "speedingCount": {
+                "$sum": {
+                    "$cond": [{"$gt": ["$speed", config.SPEED_LIMIT]}, 1, 0]
+                }
+            }
         }
     })
     
-    # Project to make the grouped document the root
-    pipeline.append({"$replaceRoot": {"newRoot": "$doc"}})
+    # Project to make the merged document the root
+    pipeline.append({
+        "$replaceRoot": {
+            "newRoot": {
+                "$mergeObjects": [
+                    "$doc",
+                    {
+                        "avgSpeed": "$avgSpeed",
+                        "avgHumidity": "$avgHumidity",
+                        "speedingCount": "$speedingCount"
+                    }
+                ]
+            }
+        }
+    })
     
     try:
         cursor = col.aggregate(pipeline)
