@@ -2,7 +2,7 @@ import asyncio
 import httpx
 from datetime import datetime, timezone
 from bson import ObjectId
-from app.db import get_database
+from app.db import get_database, db_instance
 from app import config
 
 async def get_next_message_no(db, plate: str, cache: dict) -> int:
@@ -55,21 +55,23 @@ async def novametri_worker_loop():
                 # - measurementDate >= config.START_DATE
                 # - location.coordinates exists, is a list of size >= 2, and is not [0.0, 0.0]
                 # - Either no sent record in novametri_messages OR isSentToNovametri is False
+                match_stage = {
+                    "isDeleted": {"$ne": True},
+                    "measurementDate": {"$gte": config.START_DATE},
+                    "location.coordinates": {"$exists": True, "$ne": None},
+                    "$expr": {
+                        "$and": [
+                            {"$gt": [{"$size": "$location.coordinates"}, 1]},
+                            {"$ne": [{"$arrayElemAt": ["$location.coordinates", 0]}, 0.0]},
+                            {"$ne": [{"$arrayElemAt": ["$location.coordinates", 1]}, 0.0]}
+                        ]
+                    }
+                }
+                if db_instance.allowed_plates:
+                    match_stage["plate"] = {"$in": list(db_instance.allowed_plates)}
+
                 pipeline = [
-                    {
-                        "$match": {
-                            "isDeleted": {"$ne": True},
-                            "measurementDate": {"$gte": config.START_DATE},
-                            "location.coordinates": {"$exists": True, "$ne": None},
-                            "$expr": {
-                                "$and": [
-                                    {"$gt": [{"$size": "$location.coordinates"}, 1]},
-                                    {"$ne": [{"$arrayElemAt": ["$location.coordinates", 0]}, 0.0]},
-                                    {"$ne": [{"$arrayElemAt": ["$location.coordinates", 1]}, 0.0]}
-                                ]
-                            }
-                        }
-                    },
+                    {"$match": match_stage},
                     {
                         "$lookup": {
                             "from": "novametri_messages",

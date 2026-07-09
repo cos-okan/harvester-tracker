@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, Depends, HTTPException
 from typing import List, Optional
 from datetime import datetime
-from app.db import get_database
+from app.db import get_database, db_instance
 from app.models import MachineRecordResponse
 from app import config
 
@@ -75,8 +75,18 @@ async def get_live_machines(
             ]
         }
     }
-    if plate:
-        match_stage["plate"] = plate
+    # Enforce allowed plates whitelist if defined_devices table is not empty
+    if db_instance.allowed_plates:
+        if plate:
+            if plate not in db_instance.allowed_plates:
+                match_stage["plate"] = "__NOT_ALLOWED__"
+            else:
+                match_stage["plate"] = plate
+        else:
+            match_stage["plate"] = {"$in": list(db_instance.allowed_plates)}
+    else:
+        if plate:
+            match_stage["plate"] = plate
     if driverTCKN:
         # Match value field against the numeric driverTCKN
         # PyMongo/MongoDB can match float 22622184760.0 to integer 22622184760
@@ -140,8 +150,18 @@ async def get_machine_history(
             ]
         }
     }
-    if plate:
-        query["plate"] = plate
+    # Enforce allowed plates whitelist if defined_devices table is not empty
+    if db_instance.allowed_plates:
+        if plate:
+            if plate not in db_instance.allowed_plates:
+                query["plate"] = "__NOT_ALLOWED__"
+            else:
+                query["plate"] = plate
+        else:
+            query["plate"] = {"$in": list(db_instance.allowed_plates)}
+    else:
+        if plate:
+            query["plate"] = plate
     if driverTCKN:
         query["value"] = driverTCKN
     if areaCode:
