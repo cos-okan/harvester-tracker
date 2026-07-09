@@ -65,7 +65,15 @@ async def get_live_machines(
     # Match stage
     match_stage = {
         "isDeleted": {"$ne": True},
-        "measurementDate": {"$gte": config.START_DATE}
+        "measurementDate": {"$gte": config.START_DATE},
+        "location.coordinates": {"$exists": True, "$ne": None},
+        "$expr": {
+            "$and": [
+                {"$gt": [{"$size": "$location.coordinates"}, 1]},
+                {"$ne": [{"$arrayElemAt": ["$location.coordinates", 0]}, 0.0]},
+                {"$ne": [{"$arrayElemAt": ["$location.coordinates", 1]}, 0.0]}
+            ]
+        }
     }
     if plate:
         match_stage["plate"] = plate
@@ -121,7 +129,17 @@ async def get_machine_history(
     col = db["records"]
     
     # Build query
-    query = {"isDeleted": {"$ne": True}}
+    query = {
+        "isDeleted": {"$ne": True},
+        "location.coordinates": {"$exists": True, "$ne": None},
+        "$expr": {
+            "$and": [
+                {"$gt": [{"$size": "$location.coordinates"}, 1]},
+                {"$ne": [{"$arrayElemAt": ["$location.coordinates", 0]}, 0.0]},
+                {"$ne": [{"$arrayElemAt": ["$location.coordinates", 1]}, 0.0]}
+            ]
+        }
+    }
     if plate:
         query["plate"] = plate
     if driverTCKN:
