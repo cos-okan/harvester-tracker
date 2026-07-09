@@ -199,6 +199,7 @@ async def novametri_worker_loop():
                                         "measurementDate": measurement_date,
                                         "isSentToNovametri": is_success,
                                         "sentTime": datetime.now(timezone.utc) if is_success else None,
+                                        "requestBody": payload,
                                         "apiResponse": api_response
                                     }
                                 },
