@@ -147,7 +147,8 @@ async def get_machine_history(
     endDate: Optional[datetime] = Query(None, description="Bitiş tarihi (ISO format)"),
     plate: Optional[str] = Query(None, description="Biçerdöver plakası"),
     driverTCKN: Optional[int] = Query(None, description="Sürücü TCKN"),
-    areaCode: Optional[int] = Query(None, description="Bölge kodu")
+    areaCode: Optional[int] = Query(None, description="Bölge kodu"),
+    alarmsOnly: bool = Query(False, description="Sadece hız ihlali olan kayıtları getirir")
 ):
     """
     Biçerdöverlerin belirtilen kriterlere göre geçmiş konum ve çalışma verilerini kronolojik sırayla döndürür.
@@ -187,6 +188,10 @@ async def get_machine_history(
     if areaCode:
         query["areaCode"] = areaCode
         
+    # Apply alarmsOnly filter (speed > speed limit)
+    if alarmsOnly:
+        query["speed"] = {"$gt": config.SPEED_LIMIT}
+        
     # Date range filters (making timezone naive to match DB naive datetimes)
     date_filter = {}
     
@@ -205,8 +210,9 @@ async def get_machine_history(
     query["measurementDate"] = date_filter
         
     try:
-        # Query and sort chronologically (ascending)
-        cursor = col.find(query).sort("measurementDate", 1)
+        # Query and sort (descending for alarms, ascending for historical track)
+        sort_dir = -1 if alarmsOnly else 1
+        cursor = col.find(query).sort("measurementDate", sort_dir)
         raw_results = await cursor.to_list(length=1000)  # Cap at 1000 records for performance
         
         results = [map_mongo_to_response(doc) for doc in raw_results]

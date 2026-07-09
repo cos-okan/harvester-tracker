@@ -18,7 +18,8 @@ import {
   FileText,
   Activity,
   Layers,
-  ChevronRight
+  ChevronRight,
+  Bell
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || (window.location.port === "5173" ? `http://${window.location.hostname}:8010/api/v1/machines` : "/api/v1/machines");
@@ -60,6 +61,30 @@ const getHistoryMarker = (isSpeeding) => {
   });
 };
 
+// Helper for dynamic red pulsing alarm markers
+const getAlarmMarker = (isSelected) => {
+  const scale = isSelected ? 'scale-125 z-[5000]' : '';
+  const opacity = isSelected ? 'opacity-100 animate-ping' : 'opacity-65 animate-pulse';
+  const colorClass = 'bg-red-600 border-red-400';
+  const html = `
+    <div class="relative flex items-center justify-center w-7 h-7 ${scale}">
+      <span class="absolute inline-flex h-full w-full rounded-full bg-red-500 ${opacity}"></span>
+      <div class="relative flex items-center justify-center w-5 h-5 rounded-full ${colorClass} border border-white shadow-md">
+        <svg class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        </svg>
+      </div>
+    </div>
+  `;
+  return L.divIcon({
+    html: html,
+    className: 'custom-alarm-icon',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -14]
+  });
+};
+
 // Map helper component to fly to/pan to selected coordinates
 function ChangeView({ center, zoom }) {
   const map = useMap();
@@ -93,6 +118,11 @@ export default function App() {
   const [endDate, setEndDate] = useState('2026-06-26T23:59');
   const [historyPlate, setHistoryPlate] = useState('');
   const [selectedHistoryPoint, setSelectedHistoryPoint] = useState(null);
+
+  // Alarm States
+  const [alarmsData, setAlarmsData] = useState([]);
+  const [selectedAlarmPoint, setSelectedAlarmPoint] = useState(null);
+  const [alarmPlate, setAlarmPlate] = useState('');
 
   // UI States
   const [loading, setLoading] = useState(false);
@@ -185,6 +215,46 @@ export default function App() {
     }
   };
 
+  // Fetch Alarms Data
+  const fetchAlarms = async (plate = alarmPlate) => {
+    if (!plate) {
+      setError('Lütfen alarmları listelemek için bir plaka seçin.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSelectedAlarmPoint(null);
+    try {
+      const params = new URLSearchParams({
+        plate: plate,
+        alarmsOnly: 'true'
+      });
+      
+      const response = await fetch(`${API_BASE_URL}/history?${params.toString()}`);
+      if (!response.ok) throw new Error('Alarmlar yüklenirken hata oluştu.');
+      const data = await response.json();
+      
+      setAlarmsData(data);
+      
+      if (data.length === 0) {
+        setError('Bu araca ait herhangi bir hız sınırı aşım alarmı bulunamadı.');
+      } else {
+        // Find first alarm with valid coordinates to center map
+        const latestAlarm = data[0]; // Sorted descending, so index 0 is latest
+        setSelectedAlarmPoint(latestAlarm);
+        const coords = latestAlarm.location?.coordinates;
+        if (coords && coords[0] !== 0 && coords[1] !== 0) {
+          setMapCenter([coords[0], coords[1]]);
+          setMapZoom(13);
+        }
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Set up polling for live mode
   useEffect(() => {
     if (activeTab === 'live') {
@@ -214,15 +284,21 @@ export default function App() {
     setError(null);
     setSelectedMachine(null);
     setSelectedHistoryPoint(null);
+    setSelectedAlarmPoint(null);
     
     if (tab === 'history') {
       // Pre-fill history plate with currently selected machine if any
-      if (selectedMachine) {
-        setHistoryPlate(selectedMachine.plate);
-      } else if (machines.length > 0) {
-        setHistoryPlate(machines[0].plate);
-      }
+      const initialPlate = selectedMachine?.plate || (machines.length > 0 ? machines[0].plate : '');
+      setHistoryPlate(initialPlate);
       setHistoryData([]);
+    } else if (tab === 'alarms') {
+      // Pre-fill alarm plate with currently selected machine if any
+      const initialPlate = selectedMachine?.plate || (machines.length > 0 ? machines[0].plate : '');
+      setAlarmPlate(initialPlate);
+      setAlarmsData([]);
+      if (initialPlate) {
+        fetchAlarms(initialPlate);
+      }
     } else {
       fetchLiveMachines();
     }
@@ -283,6 +359,17 @@ export default function App() {
           >
             <MapIcon className="w-4 h-4" />
             Canlı Takip
+          </button>
+          <button
+            onClick={() => handleTabChange('alarms')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              activeTab === 'alarms'
+                ? 'bg-slate-800 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            Alarm İzleme
           </button>
           <button
             onClick={() => handleTabChange('history')}
@@ -430,6 +517,75 @@ export default function App() {
                 </div>
               </div>
             </div>
+          ) : activeTab === 'alarms' ? (
+            // Section: Alarm Controls
+            <div className="p-5 flex flex-col gap-5">
+              <span className="text-sm font-bold text-slate-300 font-outfit tracking-wide uppercase">Alarm Filtresi</span>
+              
+              {/* Select Machine */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-slate-400 font-medium">Biçerdöver Plakası</label>
+                <select
+                  value={alarmPlate}
+                  onChange={(e) => {
+                    setAlarmPlate(e.target.value);
+                    fetchAlarms(e.target.value);
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-sm text-slate-200 focus:outline-none focus:border-slate-700 transition-colors"
+                >
+                  <option value="">Plaka Seçin</option>
+                  {machines.map(m => (
+                    <option key={m._id} value={m.plate}>{m.plate}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Alarms list */}
+              <div className="flex flex-col gap-2 mt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hız Aşımları ({alarmsData.length})</span>
+                  {loading && <span className="text-xs text-emerald-400 animate-pulse">Yükleniyor...</span>}
+                </div>
+                
+                <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1">
+                  {alarmsData.length === 0 ? (
+                    <div className="text-center py-6 text-sm text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                      Kayıtlı hız aşım alarmı bulunamadı.
+                    </div>
+                  ) : (
+                    alarmsData.map((pt) => (
+                      <div
+                        key={pt._id}
+                        onClick={() => {
+                          setSelectedAlarmPoint(pt);
+                          const coords = pt.location?.coordinates;
+                          if (coords && coords[0] !== 0 && coords[1] !== 0) {
+                            setMapCenter([coords[0], coords[1]]);
+                            setMapZoom(15);
+                          }
+                        }}
+                        className={`p-2.5 rounded-lg border text-xs cursor-pointer flex flex-col gap-1.5 transition-all ${
+                          selectedAlarmPoint?._id === pt._id
+                            ? 'bg-red-950/20 border-red-500/50 text-red-200 shadow-md'
+                            : 'bg-slate-900/40 border-slate-800 hover:bg-slate-900/90 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-red-400">{pt.speed.toFixed(2)} km/s</span>
+                          <span className="text-[10px] text-slate-500">
+                            {new Date(pt.measurementDate).toLocaleString('tr-TR')}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-400">
+                          <span>Konum: {pt.areaName} ({pt.areaCode})</span>
+                          <span>Nem: %{pt.humidity}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           ) : (
             // Section: History Controls
             <div className="p-5 flex flex-col gap-5">
@@ -444,13 +600,9 @@ export default function App() {
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-sm text-slate-200 focus:outline-none focus:border-slate-700 transition-colors"
                 >
                   <option value="">Plaka Seçin</option>
-                  <option value="59-001">59-001</option>
-                  <option value="59-002">59-002</option>
-                  <option value="59-003">59-003</option>
-                  <option value="59-004">59-004</option>
-                  <option value="59-005">59-005</option>
-                  <option value="09-0089">09-0089 (Aydın)</option>
-                  <option value="09-0001">09-0001 (Aydın)</option>
+                  {machines.map(m => (
+                    <option key={m._id} value={m.plate}>{m.plate}</option>
+                  ))}
                 </select>
               </div>
 
@@ -710,6 +862,57 @@ export default function App() {
                     })}
                 </>
               )}
+              {/* Alarm Markers */}
+              {activeTab === 'alarms' && alarmsData.length > 0 && (
+                <>
+                  {alarmsData
+                    .filter(d => d.location?.coordinates?.[0] > 0)
+                    .map((pt, idx) => {
+                      const coords = pt.location.coordinates;
+                      const isSelected = selectedAlarmPoint?._id === pt._id;
+                      
+                      return (
+                        <Marker
+                          key={pt._id}
+                          position={[coords[0], coords[1]]}
+                          icon={getAlarmMarker(isSelected)}
+                          eventHandlers={{
+                            click: () => {
+                              setSelectedAlarmPoint(pt);
+                            }
+                          }}
+                        >
+                          <Popup>
+                            <div className="text-xs p-1 text-slate-100 flex flex-col gap-1 min-w-[160px]">
+                              <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1">
+                                <span className="font-bold text-red-400 font-outfit text-sm">Hız İhlal Alarmı</span>
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400">
+                                  İhlal
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-slate-400 mb-1 flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(pt.measurementDate).toLocaleString('tr-TR')}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <Gauge className="w-3.5 h-3.5 text-red-400 font-bold" />
+                                <span className="font-bold text-white">Hız: {pt.speed.toFixed(2)} km/s</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <Droplet className="w-3.5 h-3.5 text-blue-400" />
+                                <span>Nem: {pt.humidity ?? 'N/A'}%</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{pt.areaName} ({pt.areaCode})</span>
+                              </div>
+                            </div>
+                          </Popup>
+                        </Marker>
+                      );
+                    })}
+                </>
+              )}
             </MapContainer>
 
             {/* Float Status Summary */}
@@ -726,6 +929,66 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {/* Alarms Right Panel List */}
+          {activeTab === 'alarms' && alarmsData.length > 0 && (
+            <div className="absolute top-10 right-10 w-80 glass-panel border border-slate-800/80 rounded-2xl shadow-2xl p-5 z-[1000] flex flex-col gap-4 animate-in slide-in-from-right duration-300 animate-out fade-out-30">
+              <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <h2 className="text-lg font-bold font-outfit text-white">{alarmPlate} Alarmları</h2>
+                  <span className="text-[10px] text-red-400 uppercase tracking-widest font-bold flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-red-500 animate-pulse" />
+                    Hız Sınır İhlal Listesi
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-2.5 max-h-[500px] overflow-y-auto pr-1">
+                {alarmsData.map((pt, idx) => (
+                  <div
+                    key={pt._id}
+                    onClick={() => {
+                      setSelectedAlarmPoint(pt);
+                      const coords = pt.location?.coordinates;
+                      if (coords && coords[0] !== 0 && coords[1] !== 0) {
+                        setMapCenter([coords[0], coords[1]]);
+                        setMapZoom(15);
+                      }
+                    }}
+                    className={`p-3 rounded-xl border text-xs cursor-pointer flex flex-col gap-2 transition-all ${
+                      selectedAlarmPoint?._id === pt._id
+                        ? 'bg-red-950/30 border-red-500/60 shadow-lg text-red-200 font-medium'
+                        : 'bg-slate-900/50 border-slate-800/80 hover:bg-slate-900/90 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-red-400 text-sm flex items-center gap-1">
+                        <Gauge className="w-3.5 h-3.5 text-red-400" />
+                        {pt.speed.toFixed(2)} km/s
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-semibold">
+                        {new Date(pt.measurementDate).toLocaleString('tr-TR')}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 text-[10px] text-slate-400 border-t border-slate-800/40 pt-1.5 mt-0.5">
+                      <div className="flex justify-between">
+                        <span>Bölge:</span>
+                        <span className="font-semibold text-slate-300">{pt.areaName} ({pt.areaCode})</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Nem Oranı:</span>
+                        <span className="font-semibold text-blue-400">%{pt.humidity ?? 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Sürücü TCKN:</span>
+                        <span className="font-semibold text-slate-300">{pt.driverTCKN || 'Tanımsız'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Machine Details Drawer / Card Overlay */}
           {activeTab === 'live' && selectedMachine && (
