@@ -519,11 +519,11 @@ export default function App() {
             </div>
           ) : activeTab === 'alarms' ? (
             // Section: Alarm Controls
-            <div className="p-5 flex flex-col gap-5">
+            <div className="p-5 flex flex-col gap-5 flex-1 min-h-0">
               <span className="text-sm font-bold text-slate-300 font-outfit tracking-wide uppercase">Alarm Filtresi</span>
               
               {/* Select Machine */}
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 flex-shrink-0">
                 <label className="text-xs text-slate-400 font-medium">Biçerdöver Plakası</label>
                 <select
                   value={alarmPlate}
@@ -541,15 +541,15 @@ export default function App() {
               </div>
 
               {/* Alarms list */}
-              <div className="flex flex-col gap-2 mt-2">
-                <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-2 mt-2 flex-1 min-h-0">
+                <div className="flex items-center justify-between flex-shrink-0">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hız Aşımları ({alarmsData.length})</span>
                   {loading && <span className="text-xs text-emerald-400 animate-pulse">Yükleniyor...</span>}
                 </div>
                 
-                <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1">
+                <div className="flex flex-col gap-2 flex-1 overflow-y-auto pr-1">
                   {alarmsData.length === 0 ? (
-                    <div className="text-center py-6 text-sm text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                    <div className="text-center py-6 text-sm text-slate-500 border border-dashed border-slate-800 rounded-xl flex-shrink-0">
                       Kayıtlı hız aşım alarmı bulunamadı.
                     </div>
                   ) : (
