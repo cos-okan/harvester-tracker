@@ -57,7 +57,7 @@ async def novametri_worker_loop():
                 # - Either no sent record in novametri_messages OR isSentToNovametri is False
                 match_stage = {
                     "isDeleted": {"$ne": True},
-                    "measurementDate": {"$gte": config.START_DATE},
+                    "measurementDate": {"$gte": config.NOVAMETRI_START_DATE},
                     "location.coordinates": {"$exists": True, "$ne": None},
                     "$expr": {
                         "$and": [
