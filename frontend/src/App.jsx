@@ -85,6 +85,12 @@ const getAlarmMarker = (isSelected) => {
   });
 };
 
+// Check if coordinates exist and are not 0
+const hasValidCoords = (d) => {
+  const coords = d?.location?.coordinates;
+  return coords && coords.length > 1 && coords[0] !== 0 && coords[1] !== 0;
+};
+
 // Map helper component to fly to/pan to selected coordinates
 function ChangeView({ center, zoom }) {
   const map = useMap();
@@ -202,7 +208,7 @@ export default function App() {
         setError('Belirtilen tarih aralığında bu plakaya ait kayıt bulunamadı.');
       } else {
         // Find first record with valid coordinates to center map
-        const validCoords = data.find(d => d.location?.coordinates?.[0] > 0);
+        const validCoords = data.find(hasValidCoords);
         if (validCoords) {
           setMapCenter([validCoords.location.coordinates[0], validCoords.location.coordinates[1]]);
           setMapZoom(13);
@@ -806,7 +812,7 @@ export default function App() {
                   {/* Draws the path */}
                   <Polyline
                     positions={historyData
-                      .filter(d => d.location?.coordinates?.[0] > 0)
+                      .filter(hasValidCoords)
                       .map(d => [d.location.coordinates[0], d.location.coordinates[1]])
                     }
                     color="#3b82f6"
@@ -817,7 +823,7 @@ export default function App() {
                   
                   {/* Markers along the path */}
                   {historyData
-                    .filter(d => d.location?.coordinates?.[0] > 0)
+                    .filter(hasValidCoords)
                     .map((pt, idx) => {
                       const isSpeeding = pt.isSpeeding;
                       const coords = pt.location.coordinates;
@@ -866,7 +872,7 @@ export default function App() {
               {activeTab === 'alarms' && alarmsData.length > 0 && (
                 <>
                   {alarmsData
-                    .filter(d => d.location?.coordinates?.[0] > 0)
+                    .filter(hasValidCoords)
                     .map((pt, idx) => {
                       const coords = pt.location.coordinates;
                       const isSelected = selectedAlarmPoint?._id === pt._id;
